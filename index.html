@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>keycloak</title>
+    <script src="keycloak.js"></script>
+    <script>
+
+        let initOptions = {
+            url: 'https://idm-homologacao.prodam.am.gov.br/auth', 
+            realm: 'Ajuri', 
+            clientId: 'ajuri-wms-web'            
+        }
+
+        var keycloak = new Keycloak(initOptions);
+
+        keycloak.init({  onLoad: 'login-required',   promiseType: 'native', checkLoginIframe: false }).then(function(auth) {
+        
+            if(!auth) {
+                window.location.reload();
+            } else {
+                console.info("Authenticated");
+            }        
+        
+            localStorage.setItem("vue-token", keycloak.token);
+            localStorage.setItem("vue-refresh-token", keycloak.refreshToken);
+
+            keycloak.updateToken(30).then(function(refreshed) {
+                if (refreshed) {
+                    document.getElementById('token').innerText = 'Token was successfully refreshed';
+                } else {
+                    document.getElementById('token').innerText = 'Token is still valid ' +
+                    ', valid for ' + Math.round(keycloak.tokenParsed.exp + keycloak.timeSkew - new Date().getTime() / 1000) + ' seconds';
+                }
+
+                loadData();
+            }).catch(function() {
+                alert('Failed to refresh token');
+            });
+
+            keycloak.loadUserProfile().then(function(profile) {
+                document.getElementById('perfil').innerText = JSON.stringify(profile, null, "  ");
+            }).catch(function() {
+                document.getElementById('perfil').innerText = 'Failed to load user profile';
+            });
+
+        }).catch(function() {
+            console.error("Authenticated Failed");
+        });
+
+        var loadData = function () {
+            document.getElementById('username').innerText = keycloak.subject;
+
+            var url = 'http://localhost:8080/api/roles';
+
+            var req = new XMLHttpRequest();
+            req.open('GET', url, true);
+            req.setRequestHeader('Accept', 'application/json');
+            req.setRequestHeader('Authorization', 'Bearer ' + keycloak.token);
+
+            req.onreadystatechange = function () {
+                if (req.readyState == 4) {
+                    document.getElementById('status').innerText = req.status;
+                    document.getElementById('response').innerText = req.response;
+                }
+            }
+
+            req.send();
+        };
+
+
+    </script>
+</head>
+<body>
+    <h1 id="username"></h1>
+
+    <h2 id="status"></h2>
+
+    <pre>
+        <h2 id="perfil"></h2>
+    </pre>
+
+    <pre>
+        <h2 id="response"></h2>
+    </pre>
+
+    <h1 id="token"></h1>
+    
+</body>
+</html>
